@@ -1,0 +1,8 @@
+{
+  "user_id": "user_123",
+  "amount": 35,
+  "currency": "USD",
+  "timestamp": "2026-10-12T15:30:00Z",
+  "merchant": {"name": "Example Cafe", "country": "US"},
+  "recent_transactions": []
+}

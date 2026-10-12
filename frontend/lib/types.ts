@@ -8,8 +8,11 @@ export type Transaction = {
   location: string;
   cardLast4: string;
   agent: string;
-  agentType: "AI agent" | "Human";
+  agentType: "AI agent" | "Human" | "Unknown";
   amount: number;
+  currency?: string;
+  reasons?: string[];
+  engine?: string;
   time: string;
   date: string;
   status: TransactionStatus;
@@ -17,6 +20,7 @@ export type Transaction = {
 };
 
 export type Policy = {
+  riskThreshold: number;
   agentPurchases: boolean;
   maxAmount: number;
   trustedAgentsOnly: boolean;

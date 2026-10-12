@@ -1,6 +1,7 @@
 import type { Policy, Transaction } from "./types";
 
 export const defaultPolicy: Policy = {
+  riskThreshold: 50,
   agentPurchases: true,
   maxAmount: 750,
   trustedAgentsOnly: false,

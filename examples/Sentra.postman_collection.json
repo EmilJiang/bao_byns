@@ -1,0 +1,106 @@
+{
+  "info": {
+    "name": "Sentra fraud detection POC",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "brand_id",
+      "value": "american-airlines"
+    }
+  ],
+  "item": [
+    {
+      "name": "Detect normal transaction",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/brands/{{brand_id}}/detect-fraud",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"user_123\",\n  \"amount\": 35,\n  \"currency\": \"USD\",\n  \"timestamp\": \"2026-10-12T15:30:00Z\",\n  \"merchant\": {\"name\": \"Example Cafe\", \"country\": \"US\"},\n  \"recent_transactions\": []\n}\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Classification\", () => pm.expect(pm.response.json().is_fraud).to.eql(false));",
+              "pm.collectionVariables.set(\"transaction_id\", pm.response.json().transaction_id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Detect suspicious transaction",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/brands/{{brand_id}}/detect-fraud",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"user_123\",\n  \"amount\": 2500,\n  \"currency\": \"USD\",\n  \"timestamp\": \"2026-10-12T15:30:00Z\",\n  \"merchant\": {\"name\": \"Example Electronics\", \"country\": \"US\"},\n  \"recent_transactions\": [\n    {\"amount\": 35, \"currency\": \"USD\", \"timestamp\": \"2026-10-12T15:20:00Z\", \"merchant_country\": \"GB\"}\n  ]\n}\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Classification\", () => pm.expect(pm.response.json().is_fraud).to.eql(true));",
+              "pm.collectionVariables.set(\"transaction_id\", pm.response.json().transaction_id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List saved transactions",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/v1/brands/{{brand_id}}/transactions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Saved transaction exists\", () => pm.expect(pm.response.json().data.some(t => t.id === pm.collectionVariables.get(\"transaction_id\"))).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

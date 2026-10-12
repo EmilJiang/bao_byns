@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AirplaneTilt, Bell, CaretDown, CaretLeft, CaretRight, Check, CirclesThreePlus, CreditCard,
   DownloadSimple, Gear, List, MagnifyingGlass, Plus, ShieldCheck, SlidersHorizontal,
@@ -9,6 +9,8 @@ import {
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import Link from "next/link";
+import { getTransactions } from "@/lib/api/transactions";
 import { publishPolicy } from "@/lib/api/policies";
 import { weeklyVolume } from "@/lib/mock-data";
 import type { Policy, Transaction, TransactionStatus } from "@/lib/types";
@@ -17,13 +19,13 @@ type View = "overview" | "transactions" | "policy";
 type Filter = "all" | TransactionStatus;
 
 const statusLabels: Record<TransactionStatus, string> = {
-  approved: "Legitimate",
-  blocked: "Fraudulent",
+  approved: "Approved",
+  blocked: "Rejected",
   review: "In review",
 };
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value);
+function money(value: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(value);
 }
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -45,6 +47,19 @@ function StatusPill({ status }: { status: TransactionStatus }) {
 }
 
 export default function Dashboard({ initialTransactions, initialPolicy }: { initialTransactions: Transaction[]; initialPolicy: Policy }) {
+  const [transactions, setTransactions] = useState(initialTransactions);
+  const [syncError, setSyncError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      try {
+        const rows = await getTransactions();
+        if (active) { setTransactions(rows); setSyncError(false); }
+      } catch { if (active) setSyncError(true); }
+    }
+    const timer = window.setInterval(refresh, 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
   const [view, setView] = useState<View>("overview");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -55,16 +70,16 @@ export default function Dashboard({ initialTransactions, initialPolicy }: { init
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [selected, setSelected] = useState<Transaction | null>(null);
 
-  const filtered = useMemo(() => initialTransactions.filter((transaction) => {
+  const filtered = useMemo(() => transactions.filter((transaction) => {
     const matchesFilter = filter === "all" || transaction.status === filter;
     const needle = query.toLowerCase();
     const matchesQuery = !needle || `${transaction.merchant} ${transaction.id} ${transaction.agent}`.toLowerCase().includes(needle);
     return matchesFilter && matchesQuery;
-  }), [initialTransactions, filter, query]);
+  }), [transactions, filter, query]);
 
-  const approved = initialTransactions.filter((item) => item.status === "approved");
-  const blocked = initialTransactions.filter((item) => item.status === "blocked");
-  const totalVolume = initialTransactions.reduce((sum, item) => sum + item.amount, 0);
+  const approved = transactions.filter((item) => item.status === "approved");
+  const blocked = transactions.filter((item) => item.status === "blocked");
+  const totalVolume = transactions.reduce((sum, item) => sum + item.amount, 0);
   const blockedVolume = blocked.reduce((sum, item) => sum + item.amount, 0);
 
   async function savePolicy() {
@@ -93,10 +108,10 @@ export default function Dashboard({ initialTransactions, initialPolicy }: { init
         <nav>
           <p>MONITOR</p>
           <button className={view === "overview" ? "active" : ""} onClick={() => setView("overview")}><CirclesThreePlus />Overview</button>
-          <button className={view === "transactions" ? "active" : ""} onClick={() => setView("transactions")}><List />Transactions<span className="nav-count">24</span></button>
+          <button className={view === "transactions" ? "active" : ""} onClick={() => setView("transactions")}><List />Transactions<span className="nav-count">{transactions.length}</span></button>
           <p>CONTROL</p>
           <button className={view === "policy" ? "active" : ""} onClick={() => setView("policy")}><SlidersHorizontal />Agent policy</button>
-          <button><CreditCard />Cards</button>
+          <Link href="/checkout" className="demo-checkout-link">Open demo checkout ↗</Link>
         </nav>
         <div className="sidebar-bottom">
           <button><Gear />Settings</button>
@@ -113,6 +128,7 @@ export default function Dashboard({ initialTransactions, initialPolicy }: { init
         </header>
 
         <div className="content">
+          {syncError && <p role="alert">Live updates paused. Check the API connection.</p>}
           {view === "policy" ? (
             <PolicyView policy={policy} setPolicy={setPolicy} saved={savedPolicy} onSave={savePolicy} saving={savingPolicy} />
           ) : (
@@ -183,13 +199,13 @@ export default function Dashboard({ initialTransactions, initialPolicy }: { init
                         <td><strong className="muted-strong">{transaction.time}</strong><small>{transaction.date}</small></td>
                         <td><StatusPill status={transaction.status} /></td>
                         <td><div className="risk-score"><span><i style={{ width: `${transaction.riskScore}%` }} className={transaction.riskScore > 80 ? "high" : transaction.riskScore > 60 ? "medium" : "low"} /></span><b>{transaction.riskScore}</b></div></td>
-                        <td className="amount"><strong>{money(transaction.amount)}</strong><small>USD</small></td>
+                        <td className="amount"><strong>{money(transaction.amount, transaction.currency ?? "USD")}</strong><small>{transaction.currency ?? "USD"}</small></td>
                         <td><button className="row-button"><CaretRight /></button></td>
                       </tr>
                     ))}</tbody>
                   </table>
                 </div>
-                {view === "transactions" && <div className="made-c-pagination pagination"><span className="made-c-pagination__count">Showing 1–{filtered.length} of 1,284</span><div className="made-c-pagination__controls"><button className="made-c-pagination__button" disabled><CaretLeft /></button><button className="active">1</button><button>2</button><button>3</button><button className="made-c-pagination__button"><CaretRight /></button></div></div>}
+                {view === "transactions" && <div className="made-c-pagination pagination"><span className="made-c-pagination__count">Showing {filtered.length} loaded transactions</span><div className="made-c-pagination__controls"><button className="made-c-pagination__button" disabled><CaretLeft /></button><button className="active">1</button><button>2</button><button>3</button><button className="made-c-pagination__button"><CaretRight /></button></div></div>}
               </section>
             </>
           )}
@@ -197,7 +213,7 @@ export default function Dashboard({ initialTransactions, initialPolicy }: { init
       </main>
 
       {selected && <TransactionDrawer transaction={selected} onClose={() => setSelected(null)} />}
-      {toast && <div className={`made-c-toast made-c-toast--${toast}-light toast`}><span className="made-c-toast__icon">{toast === "success" ? <Check weight="bold" /> : <Warning weight="fill" />}</span><div className="made-c-toast__content"><strong>{toast === "success" ? "Policy published" : "Couldn’t publish policy"}</strong><small>{toast === "success" ? "Your new rules are now protecting every card." : "Check the backend connection and try again."}</small></div><button className="made-c-toast__button-close" onClick={() => setToast(null)}><X /></button></div>}
+      {toast && <div className={`made-c-toast made-c-toast--${toast}-light toast`}><span className="made-c-toast__icon">{toast === "success" ? <Check weight="bold" /> : <Warning weight="fill" />}</span><div className="made-c-toast__content"><strong>{toast === "success" ? "Policy published" : "Couldn’t publish policy"}</strong><small>{toast === "success" ? "Your risk settings now apply to new demo purchases." : "Check the backend connection and try again."}</small></div><button className="made-c-toast__button-close" onClick={() => setToast(null)}><X /></button></div>}
     </div>
   );
 }
@@ -209,23 +225,24 @@ function Metric({ label, value, trend, positive, icon, spark }: { label: string;
 function PolicyView({ policy, setPolicy, saved, onSave, saving }: { policy: Policy; setPolicy: (policy: Policy) => void; saved: Policy; onSave: () => Promise<void>; saving: boolean }) {
   const dirty = JSON.stringify(policy) !== JSON.stringify(saved);
   return <>
-    <section className="page-heading policy-heading"><div><p className="eyebrow">AADVANTAGE® CARD · CONTROL</p><h1>Agent-assisted travel policy</h1><p>Decide how AI travel agents can use members’ AAdvantage cards.</p></div><div className="heading-actions"><button className="made-c-button made-c-button--secondary made-c-button--small button secondary" onClick={() => setPolicy(saved)} disabled={!dirty || saving}>Discard</button><button className="made-c-button made-c-button--primary made-c-button--small button primary" onClick={onSave} disabled={!dirty || saving}><Check />{saving ? "Publishing…" : "Publish changes"}</button></div></section>
+    <section className="page-heading policy-heading"><div><p className="eyebrow">AADVANTAGE® CARD · CONTROL</p><h1>Client risk policy</h1><p>Choose the risk score that rejects a purchase. Other controls are demo-only.</p></div><div className="heading-actions"><button className="made-c-button made-c-button--secondary made-c-button--small button secondary" onClick={() => setPolicy(saved)} disabled={!dirty || saving}>Discard</button><button className="made-c-button made-c-button--primary made-c-button--small button primary" onClick={onSave} disabled={!dirty || saving || !Number.isFinite(policy.maxAmount) || policy.maxAmount <= 0 || !Number.isInteger(policy.riskThreshold) || policy.riskThreshold < 1 || policy.riskThreshold > 100}><Check />{saving ? "Publishing…" : "Publish changes"}</button></div></section>
     <div className="policy-layout">
       <div className="policy-main">
         <section className="made-c-card panel policy-card">
-          <div className="policy-card-heading"><span className="policy-icon"><AirplaneTilt /></span><div><h2>Travel agent permissions</h2><p>Set the baseline for AI-initiated travel purchases.</p></div></div>
+          <div className="policy-card-heading"><span className="policy-icon"><AirplaneTilt /></span><div><h2>Travel agent permissions · Demo only</h2><p>These controls are visual placeholders and do not affect checkout decisions.</p></div></div>
           <PolicyRow title="Allow agent-assisted bookings" description="Permit verified AI travel agents to initiate card transactions."><Toggle enabled={policy.agentPurchases} onChange={() => setPolicy({ ...policy, agentPurchases: !policy.agentPurchases })} /></PolicyRow>
           <PolicyRow title="Only allow trusted travel agents" description="Decline purchases from agents outside the American Airlines allowlist."><Toggle enabled={policy.trustedAgentsOnly} onChange={() => setPolicy({ ...policy, trustedAgentsOnly: !policy.trustedAgentsOnly })} /></PolicyRow>
-          <div className="limit-row"><div><strong>Maximum agent booking</strong><p>Send higher-value itineraries to manual review.</p></div><label><span>$</span><input type="number" min="1" value={policy.maxAmount} onChange={(event) => setPolicy({ ...policy, maxAmount: Number(event.target.value) })} /><em>USD</em></label></div>
+          <div className="limit-row"><div><strong>Maximum purchase amount</strong><p>Demo only. This amount does not affect purchase decisions.</p></div><label><span>$</span><input type="number" min="1" value={policy.maxAmount} onChange={(event) => setPolicy({ ...policy, maxAmount: Number(event.target.value) })} /><em>USD</em></label></div>
           <div className="made-c-range-slider range-wrap"><input className="made-c-range-slider__range" type="range" min="50" max="2500" step="50" value={policy.maxAmount} onChange={(event) => setPolicy({ ...policy, maxAmount: Number(event.target.value) })} style={{ "--range": `${((policy.maxAmount - 50) / 2450) * 100}%` } as React.CSSProperties} /><div><span>$50</span><span>$2,500</span></div></div>
+          <PolicyRow title="Review international itineraries" description="Demo only. Does not affect checkout decisions."><Toggle enabled={policy.blockInternational} onChange={() => setPolicy({ ...policy, blockInternational: !policy.blockInternational })} /></PolicyRow>
         </section>
         <section className="made-c-card panel policy-card">
-          <div className="policy-card-heading"><span className="policy-icon warning-icon"><ShieldCheck /></span><div><h2>Automatic safeguards</h2><p>Stop suspicious behavior before authorization.</p></div></div>
-          <PolicyRow title="Block high-risk transactions" description="Automatically decline when the Agent Guard risk score is 80 or higher."><Toggle enabled={policy.blockHighRisk} onChange={() => setPolicy({ ...policy, blockHighRisk: !policy.blockHighRisk })} /></PolicyRow>
-          <PolicyRow title="Review international itineraries" description="Route agent-booked international travel for additional verification."><Toggle enabled={policy.blockInternational} onChange={() => setPolicy({ ...policy, blockInternational: !policy.blockInternational })} /></PolicyRow>
+          <div className="policy-card-heading"><span className="policy-icon warning-icon"><ShieldCheck /></span><div><h2>Risk score control</h2><p>This is the active control for the demo checkout.</p></div></div>
+          <PolicyRow title="Block high-risk transactions" description={`Reject scores at or above ${policy.riskThreshold}. Scores are deterministic for this demo.`}><Toggle enabled={policy.blockHighRisk} onChange={() => setPolicy({ ...policy, blockHighRisk: !policy.blockHighRisk })} /></PolicyRow>
+          <div className="limit-row"><div><strong>Rejection score threshold</strong><p>Reject at this score or higher when high-risk blocking is on.</p></div><label><input aria-label="Rejection score threshold" type="number" min="1" max="100" step="1" value={policy.riskThreshold} onChange={event => setPolicy({ ...policy, riskThreshold: Number(event.target.value) })} /><em>/100</em></label></div>
         </section>
       </div>
-      <aside className="made-c-card policy-preview panel"><div className="preview-top"><span><ShieldCheck weight="fill" /></span><small>LIVE PREVIEW</small></div><h2>Your policy at a glance</h2><div className="preview-score"><div><strong>{policy.agentPurchases ? "Balanced" : "Restricted"}</strong><span>Travel agent tolerance</span></div><i>{policy.agentPurchases ? "B" : "D"}</i></div><ul><li><Check />Agent bookings are <strong>{policy.agentPurchases ? "enabled" : "disabled"}</strong></li><li><Check />Booking limit is <strong>{money(policy.maxAmount)}</strong></li><li><Check />Unknown agents are <strong>{policy.trustedAgentsOnly ? "blocked" : "monitored"}</strong></li><li><Check />High-risk activity is <strong>{policy.blockHighRisk ? "blocked" : "reviewed"}</strong></li></ul><div className="preview-note"><Warning weight="fill" /><p><strong>Estimated impact</strong><br />This policy would approve approximately 94.2% of recent agent-assisted bookings.</p></div></aside>
+      <aside className="made-c-card policy-preview panel"><div className="preview-top"><span><ShieldCheck weight="fill" /></span><small>LIVE PREVIEW</small></div><h2>Your policy at a glance</h2><div className="preview-score"><div><strong>{policy.agentPurchases ? "Balanced" : "Restricted"}</strong><span>Travel agent tolerance</span></div><i>{policy.agentPurchases ? "B" : "D"}</i></div><ul><li><Check />Demo agent bookings are <strong>{policy.agentPurchases ? "enabled" : "disabled"}</strong></li><li><Check />Demo booking limit is <strong>{money(policy.maxAmount)}</strong></li><li><Check />Demo unknown agents are <strong>{policy.trustedAgentsOnly ? "blocked" : "monitored"}</strong></li><li><Check />Score ≥ {policy.riskThreshold} is <strong>{policy.blockHighRisk ? "rejected" : "allowed"}</strong></li></ul><div className="preview-note"><Warning weight="fill" /><p><strong>How the demo works</strong><br />bot@gmail.com scores 95; other emails score 10. Only the risk toggle and threshold affect new checkouts.</p></div></aside>
     </div>
   </>;
 }
@@ -235,5 +252,5 @@ function PolicyRow({ title, description, children }: { title: string; descriptio
 }
 
 function TransactionDrawer({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
-  return <><div className="drawer-backdrop" onClick={onClose} /><aside className="drawer"><div className="drawer-head"><div><span>AADVANTAGE CARD TRANSACTION</span><h2>{transaction.id}</h2></div><button onClick={onClose}><X /></button></div><div className="drawer-amount"><div className="merchant-logo">{transaction.merchantCode}</div><div><small>{transaction.merchant}</small><strong>{money(transaction.amount)}</strong></div><StatusPill status={transaction.status} /></div><section><h3>Risk assessment</h3><div className="large-risk"><div className={`risk-number ${transaction.riskScore > 80 ? "danger" : ""}`}>{transaction.riskScore}</div><div><strong>{transaction.riskScore > 80 ? "High risk" : transaction.riskScore > 60 ? "Needs review" : "Low risk"}</strong><p>Agent Guard confidence score</p></div></div></section><section><h3>Details</h3><dl><div><dt>Initiated by</dt><dd>{transaction.agent}</dd></div><div><dt>Purchaser type</dt><dd>{transaction.agentType}</dd></div><div><dt>Card</dt><dd>AAdvantage Mastercard •••• {transaction.cardLast4}</dd></div><div><dt>Location</dt><dd>{transaction.location}</dd></div><div><dt>Time</dt><dd>{transaction.date}, {transaction.time}</dd></div></dl></section><div className="drawer-actions"><button className="made-c-button made-c-button--secondary made-c-button--small button secondary">Open investigation</button>{transaction.status !== "blocked" && <button className="made-c-button made-c-button--primary made-c-button--small button danger">Block transaction</button>}</div></aside></>;
+  return <><div className="drawer-backdrop" onClick={onClose} /><aside className="drawer"><div className="drawer-head"><div><span>AADVANTAGE CARD TRANSACTION</span><h2>{transaction.id}</h2></div><button onClick={onClose}><X /></button></div><div className="drawer-amount"><div className="merchant-logo">{transaction.merchantCode}</div><div><small>{transaction.merchant}</small><strong>{money(transaction.amount, transaction.currency ?? "USD")}</strong></div><StatusPill status={transaction.status} /></div><section><h3>Risk assessment</h3><div className="large-risk"><div className={`risk-number ${transaction.riskScore > 80 ? "danger" : ""}`}>{transaction.riskScore}</div><div><strong>{transaction.riskScore >= 50 ? "Elevated indicators" : "Below rule threshold"}</strong><p>Agent Guard risk score · {transaction.engine ?? "demo"}</p></div></div></section><section><h3>Decision reasons</h3><ul>{(transaction.reasons ?? []).map((reason) => <li key={reason}>{reason}</li>)}</ul></section><section><h3>Details</h3><dl><div><dt>Initiated by</dt><dd>{transaction.agent}</dd></div><div><dt>Purchaser type</dt><dd>{transaction.agentType}</dd></div><div><dt>Card</dt><dd>AAdvantage Mastercard •••• {transaction.cardLast4}</dd></div><div><dt>Location</dt><dd>{transaction.location}</dd></div><div><dt>Time</dt><dd>{transaction.date}, {transaction.time}</dd></div></dl></section><div className="drawer-actions"><button className="made-c-button made-c-button--secondary made-c-button--small button secondary">Open investigation</button>{transaction.status !== "blocked" && <button className="made-c-button made-c-button--primary made-c-button--small button danger">Block transaction</button>}</div></aside></>;
 }
