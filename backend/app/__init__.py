@@ -1,1 +1,1 @@
-"""Sentra API package."""
+"""Agent Guard API package."""

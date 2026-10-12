@@ -1,4 +1,4 @@
-# Sentra
+# Agent Guard
 
 A brand-scoped agentic transaction risk demo, organized as a frontend/backend monorepo.
 

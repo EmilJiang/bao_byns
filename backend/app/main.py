@@ -9,7 +9,7 @@ from .data import DEFAULT_POLICY, POLICIES, TRANSACTIONS
 from .models import ApiResponse, ListMeta, ListResponse, Policy, ResourceMeta, Transaction
 
 app = FastAPI(
-    title="Sentra Brand Risk API",
+    title="Agent Guard Brand Risk API",
     version="0.1.0",
     description="Backend contract for brand-scoped transactions and agent purchase policies.",
 )

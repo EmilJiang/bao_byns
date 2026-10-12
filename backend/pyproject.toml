@@ -1,5 +1,5 @@
 [project]
-name = "sentra-api"
+name = "agent-guard-api"
 version = "0.1.0"
 description = "Brand-scoped transaction risk API contract and mock service"
 requires-python = ">=3.11"

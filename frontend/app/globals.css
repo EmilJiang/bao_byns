@@ -22,9 +22,16 @@ button { color:inherit; }
 .app-shell { min-height:100vh; }
 .sidebar { position:fixed; inset:0 auto 0 0; width:242px; padding:24px 16px 16px; background:#14243b; color:#e3ebf5; display:flex; flex-direction:column; z-index:20; }
 .brand,.mobile-brand { display:flex; align-items:center; gap:10px; padding:0 10px 23px; font:700 22px "Manrope"; letter-spacing:-.8px; color:white; }
+.brand { gap:8px; font-size:19px; }
+.brand-name { white-space:nowrap; }
+.mastercard-mark { position:relative; flex:0 0 auto; width:31px; height:20px; }
+.mastercard-mark:after,.mastercard-mark i,.mastercard-mark b { content:""; position:absolute; top:0; width:20px; height:20px; border-radius:50%; }
+.mastercard-mark i { left:0; background:#eb001b; }
+.mastercard-mark b { right:0; background:#f79e1b; }
+.mastercard-mark:after { left:11px; z-index:1; width:9px; background:#ff5f00; }
 .brand-mark { display:grid; place-items:center; width:29px; height:29px; border-radius:9px; background:#e7edf4; color:#1d4f7a; }
 .brand-mark svg { width:19px; height:19px; }
-.brand>small { margin-left:auto; padding:3px 5px; border:1px solid #42536a; border-radius:4px; color:#8fa1b8; font:700 7px "DM Sans"; letter-spacing:.8px; }
+.brand>small { margin-left:auto; flex:0 0 auto; padding:3px 5px; border:1px solid #42536a; border-radius:4px; color:#8fa1b8; font:700 7px "DM Sans"; letter-spacing:.8px; }
 .workspace-card { display:flex; align-items:center; gap:10px; padding:11px; margin-bottom:25px; border:1px solid #364962; background:#1b2e48; border-radius:10px; cursor:pointer; }
 .workspace-card>svg,.user-card>svg { margin-left:auto; width:14px; }
 .aa-mark { position:relative; flex:0 0 auto; display:block; width:31px; height:31px; border-radius:8px; background:#fff; overflow:hidden; box-shadow:0 0 0 1px rgba(255,255,255,.16); }
